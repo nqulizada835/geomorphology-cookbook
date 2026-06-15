@@ -7,6 +7,9 @@ authors:
     orcid: https://orcid.org/0000-0001-9098-6309
     website: https://github.com/jmunroe # optional
     affiliation: Earthdata Associates # optional
+  - family-names: Rooney
+    given-names: Kathryn
+    orcid: https://orcid.org/0009-0001-6847-0354
   - name: "Cookbook Template contributors" # use the 'name' field to acknowledge organizations
     website: "https://github.com/ProjectPythia/cookbook-template/graphs/contributors"
 title: "Geomorphology Cookbook"
