@@ -16,6 +16,7 @@ project:
     - title: Introduction
       children:
         - file: notebooks/seabed-morphology.ipynb
+        - file: notebooks/rasterio-intro.ipynb
     - title: Data story
       children:
         - file: notebooks/DataVisualization.ipynb
