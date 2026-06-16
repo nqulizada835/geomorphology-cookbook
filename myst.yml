@@ -15,7 +15,11 @@ project:
         - file: notebooks/how-to-cite.md
     - title: Introduction
       children:
-        - file: notebooks/notebook-template.ipynb
+        - file: notebooks/seabed-morphology.ipynb
+    - title: Data story
+      children:
+        - file: notebooks/DataVisualization.ipynb
+        - file: notebooks/Metadata.ipynb
   jupyter:
       binder:
         url: https://binder.projectpythia.org
