@@ -14,7 +14,7 @@ Follow that and your fork stays clean and your pull requests stay easy to review
    fork:
 
    ```bash
-   git clone https://github.com:<your-username>/geomorphology-cookbook.git
+   git clone https://github.com/<your-username>/geomorphology-cookbook.git
    cd geomorphology-cookbook
    ```
 
@@ -22,7 +22,7 @@ Follow that and your fork stays clean and your pull requests stay easy to review
    stays pointed at your fork; `upstream` points at the shared project:
 
    ```bash
-   git remote add upstream https://github.com:ProjectPythia/geomorphology-cookbook.git
+   git remote add upstream https://github.com/ProjectPythia/geomorphology-cookbook.git
    git remote -v   # confirm: origin = your fork, upstream = ProjectPythia
    ```
 
