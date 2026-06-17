@@ -21,6 +21,7 @@ project:
         - file: notebooks/rasterviz-intro.ipynb
         - file: notebooks/openness_closeness_explainer.ipynb
         - file: notebooks/Polygonization.ipynb
+        - file: notebooks/jupytergis-showcase.ipynb
   jupyter:
       binder:
         url: https://binder.projectpythia.org

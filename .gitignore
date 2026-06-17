@@ -147,6 +147,7 @@ dmypy.json
 
 # Notebook-generated feature exports (reproducible from the notebooks)
 data/features/
+data/topography/
 
 # Shipyard
 .shipyard
