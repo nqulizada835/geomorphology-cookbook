@@ -1,0 +1,327 @@
+1. TPI core mask
+2. mask TPI core out of bathymetry
+3. calculate Local Moran's I on remaining bathymetry
+4. threshold strong positive LMI
+5. keep only LMI components linked to TPI cores
+6. merge TPI core + selected LMI components
+7. polygonise and area-filter
+
+function tpi_lmi_high_expansion(
+    B,
+    tpi_core_mask,
+    weights,
+    C_lmi,
+    area_threshold,
+    transform,
+    crs,
+    connectivity = 8,
+    link_distance_cells = 1,
+    min_valid_neighbour_fraction = 0.5
+):
+
+
+
+    # ================================
+    # Conventions to think about
+    # ================================
+    # We didn't talk about it, but there is a difference between elevation and depth as elevation has a positive sign and depth is negative. In the dataset here, the bathymetry has negative values.
+    # B:
+    #     Bathymetry raster stored as negative elevation values.
+    #
+    #     Example:
+    #         -30 m  = shallower / higher seabed
+    #         -100 m = deeper / lower seabed
+    #
+    #     Therefore:
+    #         larger B = higher seabed
+    #
+    # tpi_core_mask:
+    #     Boolean raster with the same shape as B.
+    #     True cells represent the TPI-derived bathymetric-high core.
+    #
+    # weights:
+    #     2D Local Moran neighbourhood weight matrix.
+    #     The centre weight should be zero.
+    #
+    #     In the tools, the authors used the 3 x 3 kernel:
+    #
+    #         0.707   1.000   0.707
+    #         1.000   0.000   1.000
+    #         0.707   1.000   0.707
+    #
+    # C_lmi:
+    #     LMI standard-deviation scale parameter.
+    #
+    # area_threshold:
+    #     Minimum polygon area in map units squared.
+    #
+    # transform:
+    #     Raster affine transform used for polygonisation.
+    #
+    # crs:
+    #     Coordinate reference system assigned to output polygons.
+
+
+    # Step 1 and 2 should already be ok.
+    # ======================
+    # Step 1: input
+    # ======================
+    # 
+    # Assumption:
+    #     B is already negative-depth bathymetry.
+    #     Larger values are higher seabed.
+    #
+    #     Z(p) = B(p)
+
+    Z = B
+    valid_Z = finite(Z)
+    valid_core = valid_Z AND tpi_core_mask
+
+    # ==========================
+    # Step 2: mask the TPI core
+    # ==========================
+    #
+    # TPI has already identified the obvious high-feature core.
+    # LMI is calculated on the remaining bathymetry.
+    #
+    #     Z_LMI(p) = NoData, if M_TPI(p) = 1
+    #     Z_LMI(p) = Z(p),    if M_TPI(p) = 0
+
+    Z_lmi = copy(Z)
+    Z_lmi[valid_core] = NoData
+
+    valid_lmi_input = finite(Z_lmi)
+
+    if count(valid_lmi_input) == 0:
+        stop("No valid cells remain after masking the TPI core.")
+
+
+    # ============================
+    # Step 3: compute Z statistics
+    # ============================
+    #
+    # Let:
+    #     Omega = {p : Z_LMI(p) is finite}
+    #
+    # Then:
+    #     mu_Z = mean(Z_LMI over Omega)
+    #     variance_Z = variance(Z_LMI over Omega)
+
+    mu_Z = mean(Z_lmi over valid_lmi_input)
+    variance_Z = variance(Z_lmi over valid_lmi_input)
+
+    if variance_Z <= 0:
+        stop("Cannot compute Local Moran's I because variance is zero.")
+
+
+    # ========================
+    # Step 4: centre bathymetry
+    # ========================
+    #
+    #     z(p) = Z_LMI(p) - mu_Z
+    #
+    # Interpretation:
+    #     z(p) > 0 means higher / shallower than the LMI-input mean.
+    #     z(p) < 0 means lower / deeper than the LMI-input mean.
+
+    z = Z_lmi - mu_Z
+
+
+    # ======================================
+    # Step 5: compute weighted neighbour sum
+    # ======================================
+    #
+    #     S(p) = sum_{q in N(p)} w_pq * z(q)
+    #
+    # NoData neighbours contribute zero, but Step 6 checks whether enough
+    # valid neighbours were available.
+
+    z_filled = copy(z)
+    z_filled[not finite(z_filled)] = 0
+
+    neighbour_sum = convolve(z_filled, weights)
+
+
+    # ====================================
+    # Step 6: check valid-neighbour support
+    # ====================================
+    #
+    #     V(q) = 1 if z(q) is finite, otherwise 0
+    #
+    #     W_valid(p) = sum_{q in N(p)} w_pq * V(q)
+    #     W_total = sum(weights)
+    #
+    # Keep cell p only if:
+    #
+    #     W_valid(p) / W_total >= min_valid_neighbour_fraction
+
+    valid_numeric = valid_lmi_input as 0/1
+    neighbour_valid_weight = convolve(valid_numeric, weights)
+    total_weight = sum(weights)
+
+    if total_weight <= 0:
+        stop("Weight matrix must have positive non-centre weight.")
+
+    valid_neighbourhood =
+        neighbour_valid_weight / total_weight >= min_valid_neighbour_fraction
+
+
+    # ================================
+    # Step 7: compute Local Moran's I
+    # ================================
+    #
+    #     LMI(p) = [z(p) / variance_Z] * S(p)
+    #
+    # Interpretation:
+    #     LMI(p) > 0 and z(p) > 0 -> high-high cluster.
+    #     LMI(p) > 0 and z(p) < 0 -> low-low cluster.
+    #     LMI(p) < 0              -> local spatial contrast.
+
+    LMI = (z / variance_Z) * neighbour_sum
+
+    LMI[not valid_lmi_input] = NoData
+    LMI[not valid_neighbourhood] = NoData
+
+
+    # =============================
+    # Step 8: compute LMI threshold
+    # =============================
+    #
+    #     LMI_T = mu_LMI + C_lmi * sigma_LMI
+
+    valid_LMI = finite(LMI)
+
+    if count(valid_LMI) == 0:
+        stop("No valid LMI cells are available after neighbourhood filtering.")
+
+    mu_LMI = mean(LMI over valid_LMI)
+    sigma_LMI = std(LMI over valid_LMI)
+
+    LMI_threshold = mu_LMI + C_lmi * sigma_LMI
+
+
+    # ===================================
+    # Step 9: select high-high LMI cells
+    # ===================================
+    #
+    # Positive LMI alone can represent high-high or low-low clustering.
+    # For bathymetric highs, keep only:
+    #
+    #     LMI(p) >= LMI_T
+    #     AND z(p) > 0
+
+    lmi_mask_all =
+        valid_LMI
+        AND LMI >= LMI_threshold
+        AND z > 0
+
+
+    # =====================================
+    # Step 10: link LMI cells to TPI core
+    # =====================================
+    #
+    #     M_link = dilate(M_TPI, link_distance_cells)
+    #
+    # Keep connected LMI component C_i if:
+    #
+    #     C_i intersects M_link
+
+    core_link_mask = dilate(
+        tpi_core_mask,
+        radius = link_distance_cells
+    )
+
+    lmi_components = label_connected_components(
+        lmi_mask_all,
+        connectivity = connectivity
+    )
+
+    selected_lmi_mask = empty_boolean_raster_like(lmi_mask_all)
+
+    for each component C in lmi_components:
+        if intersects(C, core_link_mask):
+            selected_lmi_mask[C] = True
+
+
+    # =========================================
+    # Step 11: merge TPI core and LMI extension
+    # =========================================
+    #
+    #     M_high = M_TPI OR M_LMI_selected
+
+    expanded_high_mask = tpi_core_mask OR selected_lmi_mask
+
+
+    # ==========================
+    # Step 12: polygonise masks
+    # ==========================
+
+    P_lmi_all = polygonise(
+        lmi_mask_all,
+        transform = transform,
+        crs = crs
+    )
+
+    P_lmi_selected = polygonise(
+        selected_lmi_mask,
+        transform = transform,
+        crs = crs
+    )
+
+    P_expanded_high_raw = polygonise(
+        expanded_high_mask,
+        transform = transform,
+        crs = crs
+    )
+
+
+    # ====================================
+    # Step 13: clean and filter polygons
+    # ====================================
+    #
+    # Keep polygon P_i if:
+    #
+    #     Area(P_i) >= area_threshold
+
+    P_expanded_high_raw = repair_geometries(P_expanded_high_raw)
+    P_expanded_high_raw = remove_duplicates(P_expanded_high_raw)
+
+    P_expanded_high = [
+        P for P in P_expanded_high_raw
+        if area(P) >= area_threshold
+    ]
+
+
+    # =======================
+    # Step 14: return outputs
+    # =======================
+
+    return {
+        "Z": Z,
+        "Z_lmi": Z_lmi,
+        "z": z,
+        "LMI": LMI,
+        "LMI_threshold": LMI_threshold,
+        "lmi_mask_all": lmi_mask_all,
+        "selected_lmi_mask": selected_lmi_mask,
+        "expanded_high_mask": expanded_high_mask,
+        "P_lmi_all": P_lmi_all,
+        "P_lmi_selected": P_lmi_selected,
+        "P_expanded_high": P_expanded_high,
+        "stats": {
+            "mu_Z": mu_Z,
+            "variance_Z": variance_Z,
+            "mu_LMI": mu_LMI,
+            "sigma_LMI": sigma_LMI,
+            "C_lmi": C_lmi,
+            "area_threshold": area_threshold,
+            "connectivity": connectivity,
+            "link_distance_cells": link_distance_cells,
+            "min_valid_neighbour_fraction": min_valid_neighbour_fraction,
+            "n_valid_lmi_input_cells": count(valid_lmi_input),
+            "n_valid_lmi_cells": count(valid_LMI),
+            "n_lmi_cells_selected_all": count(lmi_mask_all),
+            "n_lmi_cells_selected_linked": count(selected_lmi_mask),
+            "n_final_polygons": length(P_expanded_high)
+        }
+    }
