@@ -136,3 +136,17 @@ dmypy.json
 .nfs*
 
 .vscode/
+
+# Local uv virtual environment
+.venv/
+
+# JupyterLab runtime / collaborative editing state
+.jupyter/
+.jupyter_ystore.db
+*.jGIS
+
+# Notebook-generated feature exports (reproducible from the notebooks)
+data/features/
+
+# Shipyard
+.shipyard
