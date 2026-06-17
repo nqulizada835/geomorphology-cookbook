@@ -9,6 +9,9 @@ dependencies:
   - numpy
   - matplotlib
   - rasterio
+  - rioxarray
+  - xarray
+  - xarray-spatial
   - geopandas
   - scipy
   - shapely
