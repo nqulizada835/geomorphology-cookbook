@@ -16,8 +16,8 @@ project:
     - title: Notebooks
       children:
         - file: notebooks/seabed-morphology.ipynb
-        - file: notebooks/Metadata.ipynb
         - file: notebooks/DataStory.ipynb
+        - file: notebooks/Metadata.ipynb
         - file: notebooks/rasterviz-intro.ipynb
         - file: notebooks/Topographic-Positioning-Index-Methods.ipynb
         - file: notebooks/Openness_Closeness_Explainer.ipynb
